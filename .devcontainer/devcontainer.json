@@ -14,5 +14,10 @@
 			"**/CODE_OF_CONDUCT.md": true,
 			"**/LICENSE": true
 		}
+	},
+	"portsAttributes": {
+		"80": {
+			"label": "Application"
+		}
 	}
 }

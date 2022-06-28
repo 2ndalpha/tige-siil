@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
@@ -32,9 +31,17 @@ fn handle_connection(mut stream: TcpStream) {
     let request = String::from_utf8_lossy(&buffer[..]);
     let parts: Vec<&str> = request.split("\n").collect();
 
-    println!("Request: {}", parts[parts.len() - 1]);
-    respond_ok(stream);
-    play_new_ticket();
+    let payload = parts[parts.len() - 1].trim_matches(char::from(0));
+    println!("Request: {}", payload);
+
+    let length = payload.chars().count();
+    println!("Length: {length}");
+
+    let seed = length % 127;
+    println!("Seed: {seed}");
+    play(seed);
+
+    respond_ok(stream)
 }
 
 fn respond_ok(mut stream: TcpStream) {
@@ -51,52 +58,57 @@ fn respond_bad_method(mut stream: TcpStream) {
     stream.flush().unwrap();
 }
 
-fn play_new_ticket() {
-    play_note(80);
-    delay(500);
+fn play(seed: usize) {
+    play_note(seed + 40);
+    delay(20 * seed);
 
-    play_note(52);
-    delay(500);
+    play_note(seed + 12);
+    delay(seed);
 
-    play_note(40);
+    play_note(seed);
 
-    delay(2000);
+    delay(200 + 10 * seed);
 
-    stop_note(80);
-    stop_note(52);
-    stop_note(40);
+    stop_note(seed + 40);
+    stop_note(seed + 12);
+    stop_note(seed);
 }
 
-fn delay(milliseconds: u64) {
-    thread::sleep(time::Duration::from_millis(milliseconds));
+fn delay(milliseconds: usize) {
+    thread::sleep(time::Duration::from_millis(
+        milliseconds.try_into().unwrap(),
+    ));
 }
 
-fn play_note(note: u8) -> Result<(), Box<dyn Error>> {
+fn play_note(note: usize) {
+    let channel = note % 3;
     let client = reqwest::blocking::Client::new();
-    let resp = client
-        .post("https://fb72-195-250-172-87.eu.ngrok.io/")
+    let result = client
+        .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
         .header("Content-Type", "application/json")
         .body(format!(
-            "{{\"note\": {note}, \"velocity\": 20, \"channel\": 0, \"isOn\": true }}"
+            "{{\"note\": {note}, \"velocity\": 127, \"channel\": {channel}, \"isOn\": true }}"
         ))
-        .send()?;
-
-    println!("{:#?}", resp);
-    Ok(())
+        .send();
+    match result {
+        Err(e) => println!("Failed to start the note{:?}", e),
+        _ => (),
+    }
 }
 
-fn stop_note(note: u8) -> Result<(), Box<dyn Error>> {
+fn stop_note(note: usize) {
     let client = reqwest::blocking::Client::new();
-    let resp = client
-        .post("https://fb72-195-250-172-87.eu.ngrok.io/")
+    let result = client
+        .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
         .header("Content-Type", "application/json")
         .body(format!(
-            "{{\"note\": {note}, \"velocity\": 20, \"channel\": 0, \"isOn\": false }}"
+            "{{\"note\": {note}, \"velocity\": 0, \"channel\": 0, \"isOn\": false }}"
         ))
-        .send()?;
-
-    println!("{:#?}", resp);
-    Ok(())
+        .send();
+    match result {
+        Err(e) => println!("Failed to stop the note{:?}", e),
+        _ => (),
+    }
 }
 
 fn main() {
