@@ -1,15 +1,21 @@
+use std::error::Error;
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
-use std::error::Error;
 use std::{thread, time};
+
+use threadpool::ThreadPool;
 
 fn listen_webhook_events() {
     let listener = TcpListener::bind("127.0.0.1:80").unwrap();
+    let pool = ThreadPool::new(8);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-        handle_connection(stream);
+
+        pool.execute(|| {
+            handle_connection(stream);
+        });
     }
 }
 
@@ -20,7 +26,7 @@ fn handle_connection(mut stream: TcpStream) {
 
     if !buffer.starts_with(b"POST /") {
         respond_bad_method(stream);
-        return
+        return;
     }
 
     let request = String::from_utf8_lossy(&buffer[..]);
@@ -61,27 +67,33 @@ fn play_new_ticket() {
     stop_note(40);
 }
 
-fn delay(mut milliseconds: u64) {
+fn delay(milliseconds: u64) {
     thread::sleep(time::Duration::from_millis(milliseconds));
 }
 
-fn play_note(mut note: u8) -> Result<(), Box<dyn Error>> {
+fn play_note(note: u8) -> Result<(), Box<dyn Error>> {
     let client = reqwest::blocking::Client::new();
-    let resp = client.post("https://fb72-195-250-172-87.eu.ngrok.io/")
-    .header("Content-Type", "application/json")
-    .body(format!("{{\"note\": {note}, \"velocity\": 20, \"channel\": 0, \"isOn\": true }}"))
-    .send()?;
+    let resp = client
+        .post("https://fb72-195-250-172-87.eu.ngrok.io/")
+        .header("Content-Type", "application/json")
+        .body(format!(
+            "{{\"note\": {note}, \"velocity\": 20, \"channel\": 0, \"isOn\": true }}"
+        ))
+        .send()?;
 
     println!("{:#?}", resp);
     Ok(())
 }
 
-fn stop_note(mut note: u8) -> Result<(), Box<dyn Error>> {
+fn stop_note(note: u8) -> Result<(), Box<dyn Error>> {
     let client = reqwest::blocking::Client::new();
-    let resp = client.post("https://fb72-195-250-172-87.eu.ngrok.io/")
-    .header("Content-Type", "application/json")
-    .body(format!("{{\"note\": {note}, \"velocity\": 20, \"channel\": 0, \"isOn\": false }}"))
-    .send()?;
+    let resp = client
+        .post("https://fb72-195-250-172-87.eu.ngrok.io/")
+        .header("Content-Type", "application/json")
+        .body(format!(
+            "{{\"note\": {note}, \"velocity\": 20, \"channel\": 0, \"isOn\": false }}"
+        ))
+        .send()?;
 
     println!("{:#?}", resp);
     Ok(())
