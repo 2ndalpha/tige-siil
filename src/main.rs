@@ -1,6 +1,7 @@
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
+use std::error::Error;
 
 fn listen_webhook_events() {
     let listener = TcpListener::bind("127.0.0.1:80").unwrap();
@@ -26,6 +27,7 @@ fn handle_connection(mut stream: TcpStream) {
 
     println!("Request: {}", parts[parts.len() - 1]);
     respond_ok(stream);
+    send_midi();
 }
 
 fn respond_ok(mut stream: TcpStream) {
@@ -36,17 +38,24 @@ fn respond_ok(mut stream: TcpStream) {
 }
 
 fn respond_bad_method(mut stream: TcpStream) {
-    let response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
+    let response = "HTTP/1.1 405 Method Not Allowed\r\n\r\nMethod Not Allowed";
 
     stream.write(response.as_bytes()).unwrap();
     stream.flush().unwrap();
 }
 
-fn send_midi() {
-    let resp = reqwest::blocking::get("https://c96f-195-250-172-87.eu.ngrok.io/")?.text()?;
+fn send_note() -> Result<(), Box<dyn Error>> {
+    let client = reqwest::blocking::Client::new();
+    let resp = client.post("https://fb72-195-250-172-87.eu.ngrok.io/")
+    .header("Content-Type", "application/json")
+    .body("{\"note\": 52, \"velocity\": 20, \"channel\": 0, \"isOn\": true }")
+    .send()?;
+
+    println!("{:#?}", resp);
+    Ok(())
 }
 
 fn main() {
-    println!("Hello World!");
+    println!("🦔 Let's make some noise!");
     listen_webhook_events();
 }
