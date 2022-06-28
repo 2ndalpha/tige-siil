@@ -27,6 +27,7 @@ fn handle_connection(mut stream: TcpStream) {
         respond_bad_method(stream);
         return;
     }
+    respond_ok(stream);
 
     let request = String::from_utf8_lossy(&buffer[..]);
     let parts: Vec<&str> = request.split("\n").collect();
@@ -39,9 +40,13 @@ fn handle_connection(mut stream: TcpStream) {
 
     let seed = length % 127;
     println!("Seed: {seed}");
-    play(seed);
 
-    respond_ok(stream)
+    if payload.contains("ticket_created") {
+        play_drums();
+    }
+    if payload.contains("ticket_changed") {
+        play_fast_drums();
+    }
 }
 
 fn respond_ok(mut stream: TcpStream) {
@@ -58,20 +63,42 @@ fn respond_bad_method(mut stream: TcpStream) {
     stream.flush().unwrap();
 }
 
+// Channel for drums: 10
+// Notes between 24
+fn play_drums() {
+    for _ in 1..200 {
+        play_note(36, 10);
+        delay(100);
+
+        stop_note(36, 10);
+        delay(50);
+    }
+}
+
+fn play_fast_drums() {
+    for _ in 1..200 {
+        play_note(40, 10);
+        delay(20);
+
+        stop_note(40, 10);
+        delay(5);
+    }
+}
+
 fn play(seed: usize) {
-    play_note(seed + 40);
+    play_note(seed + 40, 0);
     delay(20 * seed);
 
-    play_note(seed + 12);
+    play_note(seed + 12, 0);
     delay(seed);
 
-    play_note(seed);
+    play_note(seed, 0);
 
     delay(200 + 10 * seed);
 
-    stop_note(seed + 40);
-    stop_note(seed + 12);
-    stop_note(seed);
+    stop_note(seed + 40, 0);
+    stop_note(seed + 12, 0);
+    stop_note(seed, 0);
 }
 
 fn delay(milliseconds: usize) {
@@ -80,8 +107,7 @@ fn delay(milliseconds: usize) {
     ));
 }
 
-fn play_note(note: usize) {
-    let channel = note % 3;
+fn play_note(note: usize, channel: usize) {
     let client = reqwest::blocking::Client::new();
     let result = client
         .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
@@ -96,13 +122,13 @@ fn play_note(note: usize) {
     }
 }
 
-fn stop_note(note: usize) {
+fn stop_note(note: usize, channel: usize) {
     let client = reqwest::blocking::Client::new();
     let result = client
         .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
         .header("Content-Type", "application/json")
         .body(format!(
-            "{{\"note\": {note}, \"velocity\": 0, \"channel\": 0, \"isOn\": false }}"
+            "{{\"note\": {note}, \"velocity\": 0, \"channel\": {channel}, \"isOn\": false }}"
         ))
         .send();
     match result {
