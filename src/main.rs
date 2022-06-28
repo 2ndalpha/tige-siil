@@ -7,7 +7,7 @@ use threadpool::ThreadPool;
 
 fn listen_webhook_events() {
     let listener = TcpListener::bind("127.0.0.1:80").unwrap();
-    let pool = ThreadPool::new(8);
+    let pool = ThreadPool::new(20);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
@@ -35,17 +35,22 @@ fn handle_connection(mut stream: TcpStream) {
     let payload = parts[parts.len() - 1].trim_matches(char::from(0));
     println!("Request: {}", payload);
 
-    let length = payload.chars().count();
-    println!("Length: {length}");
-
-    let seed = length % 127;
-    println!("Seed: {seed}");
-
     if payload.contains("ticket_created") {
         play_drums();
     }
     if payload.contains("ticket_changed") {
         play_fast_drums();
+    }
+    if payload.contains("ticket_served") {
+        play_super_fast_drums();
+    }
+    if payload.contains("ticket_called") {
+        let length = payload.chars().count();
+        println!("Length: {length}");
+
+        let seed = length % 127;
+        println!("Seed: {seed}");
+        play(seed);
     }
 }
 
@@ -66,33 +71,38 @@ fn respond_bad_method(mut stream: TcpStream) {
 // Channel for drums: 10
 // Notes between 24
 fn play_drums() {
-    for _ in 1..200 {
-        play_note(36, 10);
-        delay(100);
-
-        stop_note(36, 10);
-        delay(50);
+    for n in 1..40 {
+        let mut velocity = 60;
+        if n % 4 == 0 {
+            velocity = 127
+        }
+        play_note(36, 10, velocity);
+        delay(400);
     }
 }
 
 fn play_fast_drums() {
-    for _ in 1..200 {
-        play_note(40, 10);
-        delay(20);
+    for _ in 1..40 {
+        play_note(48, 10, 127);
+        delay(1000);
+    }
+}
 
-        stop_note(40, 10);
-        delay(5);
+fn play_super_fast_drums() {
+    for _ in 1..40 {
+        play_note(42, 10, 127);
+        delay(50);
     }
 }
 
 fn play(seed: usize) {
-    play_note(seed + 40, 0);
+    play_note(seed + 40, 0, 127);
     delay(20 * seed);
 
-    play_note(seed + 12, 0);
+    play_note(seed + 12, 0, 127);
     delay(seed);
 
-    play_note(seed, 0);
+    play_note(seed, 0, 127);
 
     delay(200 + 10 * seed);
 
@@ -107,13 +117,13 @@ fn delay(milliseconds: usize) {
     ));
 }
 
-fn play_note(note: usize, channel: usize) {
+fn play_note(note: usize, channel: usize, velocity: usize) {
     let client = reqwest::blocking::Client::new();
     let result = client
         .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
         .header("Content-Type", "application/json")
         .body(format!(
-            "{{\"note\": {note}, \"velocity\": 127, \"channel\": {channel}, \"isOn\": true }}"
+            "{{\"note\": {note}, \"velocity\": {velocity}, \"channel\": {channel}, \"isOn\": true }}"
         ))
         .send();
     match result {
