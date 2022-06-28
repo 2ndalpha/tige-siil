@@ -42,6 +42,10 @@ fn respond_bad_method(mut stream: TcpStream) {
     stream.flush().unwrap();
 }
 
+fn send_midi() {
+    let resp = reqwest::blocking::get("https://c96f-195-250-172-87.eu.ngrok.io/")?.text()?;
+}
+
 fn main() {
     println!("Hello World!");
     listen_webhook_events();
