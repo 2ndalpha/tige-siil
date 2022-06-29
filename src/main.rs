@@ -39,13 +39,25 @@ async fn handle_connection(mut stream: TcpStream) {
 
     if payload.to_lowercase().contains("mario") {
         play_mario().await;
-    } else if payload.contains("ticket_created") {
+    } else if payload.to_lowercase().contains("fast drums") && payload.contains("\"On\"") {
+        turn_on_fast_drums();
+    } else if payload.to_lowercase().contains("fast drums") && payload.contains("\"Off\"") {
+        turn_off_fast_drums();
+    } else if payload.to_lowercase().contains("alternative drums") && payload.contains("\"On\"") {
+        turn_on_alternative_drums();
+    } else if payload.to_lowercase().contains("alternative drums") && payload.contains("\"Off\"") {
+        turn_off_alternative_drums();
+    } else if payload.to_lowercase().contains("drums") && payload.contains("\"On\"") {
+        turn_on_drums();
+    } else if payload.to_lowercase().contains("drums") && payload.contains("\"Off\"") {
+        turn_off_drums();
+    } else if payload.contains("ticket_createdX") {
         play_drums();
-    } else if payload.contains("ticket_changed") {
+    } else if payload.contains("ticket_changedX") {
         play_fast_drums();
-    } else if payload.contains("ticket_served") {
+    } else if payload.contains("ticket_servedX") {
         play_super_fast_drums();
-    } else if payload.contains("ticket_called") {
+    } else if payload.contains("ticket_calledX") {
         let length = payload.chars().count();
         println!("Length: {length}");
 
@@ -157,8 +169,36 @@ fn play_mario_notes(notes: &[usize]) {
     }
 }
 
-// Channel for drums: 10
-// Notes between 24
+fn turn_on_drums() {
+    println!("Turning ON the drums");
+    play_note(36, 11, 127);
+}
+
+fn turn_off_drums() {
+    println!("Turning OFF the drums");
+    stop_note(36, 11);
+}
+
+fn turn_on_alternative_drums() {
+    println!("Turning ON the alternative drums");
+    play_note(44, 11, 127);
+}
+
+fn turn_off_alternative_drums() {
+    println!("Turning OFF the alternative drums");
+    stop_note(44, 11);
+}
+
+fn turn_on_fast_drums() {
+    println!("Turning ON the fast drums");
+    play_note(38, 13, 90);
+}
+
+fn turn_off_fast_drums() {
+    println!("Turning OFF the fast drums");
+    stop_note(38, 13);
+}
+
 fn play_drums() {
     for n in 1..40 {
         let mut velocity = 60;
@@ -178,9 +218,9 @@ fn play_fast_drums() {
 }
 
 fn play_super_fast_drums() {
-    for _ in 1..40 {
-        play_note(42, 10, 127);
-        delay(50);
+    for i in 1..40 {
+        play_note(10 + i, 10, 127);
+        delay(100);
     }
 }
 
