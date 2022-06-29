@@ -3,19 +3,19 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::{thread, time};
 
-use threadpool::ThreadPool;
 use tokio::runtime::Builder;
 use tokio::spawn;
 
+const MIDI_PLAYER_URL: &str = "http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/";
+
 fn listen_webhook_events() {
     let listener = TcpListener::bind("127.0.0.1:80").unwrap();
-    let pool = ThreadPool::new(20);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        pool.execute(|| {
-            handle_connection(stream);
+        spawn(async move {
+            handle_connection(stream).await;
         });
     }
 }
@@ -37,17 +37,15 @@ async fn handle_connection(mut stream: TcpStream) {
     let payload = parts[parts.len() - 1].trim_matches(char::from(0));
     println!("Request: {}", payload);
 
-    if payload.contains("ticket_created") {
-        //play_drums();
-        play_mario();
-    }
-    if payload.contains("ticket_changed") {
+    if payload.to_lowercase().contains("mario") {
+        play_mario().await;
+    } else if payload.contains("ticket_created") {
+        play_drums();
+    } else if payload.contains("ticket_changed") {
         play_fast_drums();
-    }
-    if payload.contains("ticket_served") {
+    } else if payload.contains("ticket_served") {
         play_super_fast_drums();
-    }
-    if payload.contains("ticket_called") {
+    } else if payload.contains("ticket_called") {
         let length = payload.chars().count();
         println!("Length: {length}");
 
@@ -124,8 +122,14 @@ async fn play_mario() {
         play_mario_notes(&part4);
     });
 
-    part3_join_handle.await;
-    part4_join_handle.await;
+    match part3_join_handle.await {
+        Ok(_) => (),
+        Err(_) => println!("Failed to play part 3"),
+    }
+    match part4_join_handle.await {
+        Ok(_) => (),
+        Err(_) => println!("Failed to play part 4"),
+    }
 
     play_mario_notes(&part5);
 
@@ -141,10 +145,15 @@ async fn play_mario() {
 }
 
 fn play_mario_notes(notes: &[usize]) {
-    for note in notes {
-        play_note(*note, 1, 127);
-        delay(80);
-        stop_note(*note, 1);
+    let mut last_note: &usize = &0;
+    for (i, note_or_delay) in notes.iter().enumerate() {
+        if i % 2 == 1 {
+            delay(*note_or_delay * 10);
+            stop_note(*last_note, 1);
+        } else {
+            play_note(*note_or_delay, 1, 127);
+            last_note = note_or_delay;
+        }
     }
 }
 
@@ -200,9 +209,9 @@ fn delay(milliseconds: usize) {
 fn play_note(note: usize, channel: usize, velocity: usize) {
     let client = reqwest::Client::new();
     spawn(async move {
-        println!("Playing {note}");
+        println!("Playing note {note}");
         let result = client
-            .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
+            .post(MIDI_PLAYER_URL)
             .header("Content-Type", "application/json")
             .body(format!(
                 "{{\"note\": {note}, \"velocity\": {velocity}, \"channel\": {channel}, \"isOn\": true }}"
@@ -219,7 +228,7 @@ fn stop_note(note: usize, channel: usize) {
     let client = reqwest::Client::new();
     spawn(async move {
         let result = client
-            .post("http://ec2-13-48-30-252.eu-north-1.compute.amazonaws.com:3000/")
+            .post(MIDI_PLAYER_URL)
             .header("Content-Type", "application/json")
             .body(format!(
                 "{{\"note\": {note}, \"velocity\": 127, \"channel\": {channel}, \"isOn\": false }}"
@@ -244,7 +253,6 @@ fn main() {
         .unwrap();
 
     runtime.block_on(async move {
-        play_mario().await;
         listen_webhook_events();
     });
 }
